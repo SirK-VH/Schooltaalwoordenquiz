@@ -751,9 +751,9 @@ function nextQuestion() {
     // Bewaar gekozen zin tijdelijk in het object voor de feedbacksectie
     currentQuestion._gekozenZin = gekozenZin;
 
-    // Maskeer het woord in de zin (case insensitive)
-    const regex = new RegExp(escapeRegExp(currentQuestion.Woord), 'gi');
-    const maskedText = gekozenZin.replace(regex, `<span class="blank">......</span>`);
+    // Maskeer het woord/de woorden in de zin die tussen {{ en }} staan
+    // De regex /\{\{(.*?)\}\}/g zoekt naar {{tekst}} en vervangt dit compleet
+    const maskedText = gekozenZin.replace(/\{\{(.*?)\}\}/g, `<span class="blank">......</span>`);
 
     card.innerHTML = `
       <div class="q-meta">
