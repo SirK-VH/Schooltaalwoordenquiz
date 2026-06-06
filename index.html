@@ -96,7 +96,7 @@
     border: 1px solid var(--border);
     border-radius: 16px;
     padding: 3rem;
-    max-width: 560px;
+    max-width: 640px;
     width: 100%;
     box-shadow: 0 8px 40px rgba(26,26,46,0.08);
   }
@@ -470,6 +470,7 @@
 </head>
 <body>
 
+<!-- ===== SETUP SCREEN ===== -->
 <div id="setup" class="screen active">
   <div class="setup-card">
     <h1>School&shy;taal&shy;<em>woorden</em></h1>
@@ -479,8 +480,9 @@
       <label>Vraagtype</label>
       <div class="pill-group" id="mode-pills">
         <button class="pill selected" data-value="mixed">Afwisselend</button>
-        <button class="pill" data-value="sentence">Alleen zinnen</button>
-        <button class="pill" data-value="meaning">Alleen betekenis</button>
+        <button class="pill" data-value="sentence">Zin aanvullen</button>
+        <button class="pill" data-value="meaning">Betekenis kiezen (MC)</button>
+        <button class="pill" data-value="definition">Omschrijving -> Woord</button>
       </div>
     </div>
 
@@ -514,6 +516,7 @@
   </div>
 </div>
 
+<!-- ===== QUIZ SCREEN ===== -->
 <div id="quiz" class="screen">
   <header class="site-header">
     <div class="logo">Taal<span>woorden</span></div>
@@ -525,10 +528,12 @@
   </div>
   <div class="quiz-body">
     <div class="question-card" id="question-card">
-      </div>
+      <!-- Ingevuld door JS -->
+    </div>
   </div>
 </div>
 
+<!-- ===== RESULTS SCREEN ===== -->
 <div id="results" class="screen">
   <div class="results-card">
     <div class="results-score-big">
@@ -556,7 +561,7 @@
 <script>
 // ===== GLOBALE VARIABELEN & INSTELLINGEN =====
 let DATA = []; 
-const CSV_FILE = 'Schooltaalwoorden met betekenis en voorbeeldzinnen.csv';
+const CSV_FILE = 'Woordjes_Nederlands_tweede_trimester (1).csv';
 
 let selectedWords = [];
 let currentIndex = 0;
@@ -603,30 +608,42 @@ function parseCSV(text) {
   const result = [];
   if (lines.length <= 1) return result;
 
-  // Header controleren (Woord;Omschrijving;Voorbeeldzin 1;Voorbeeldzin 2;Voorbeeldzin 3;Les)
   for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
+    const line = lines[i];
+    if (!line.trim()) continue;
 
-    // Splitsen op puntkomma
-    const columns = line.split(';');
+    const columns = [];
+    let currentColumn = '';
+    let inQuotes = false;
+
+    for (let c = 0; c < line.length; c++) {
+      const char = line[c];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ';' && !inQuotes) {
+        columns.push(currentColumn.trim().replace(/^"|"$/g, ''));
+        currentColumn = '';
+      } else {
+        currentColumn += char;
+      }
+    }
+    columns.push(currentColumn.trim().replace(/^"|"$/g, ''));
+
     if (columns.length >= 2) {
       const zinnen = [];
-      // Verzamel de voorbeeldzinnen uit kolommen C, D en E (index 2, 3, 4) indien aanwezig
       for (let j = 2; j <= 4; j++) {
         if (columns[j] && columns[j].trim()) {
           zinnen.push(columns[j].trim());
         }
       }
-      
-      // LEES HIER DYNAMISCH DE WAARDE UIT KOLOM F (INDEX 5)
+
       let lesNaam = columns[5] ? columns[5].trim() : 'Overige';
       if (lesNaam === '') lesNaam = 'Overige';
 
       result.push({
-        Woord: columns[0].trim(),
-        Omschrijving: columns[1].trim(),
-        Voorbeeldzinnen: zinnen, // Array met tot wel 3 zinnen
+        Woord: columns[0] ? columns[0].trim() : 'Onbekend',
+        Omschrijving: columns[1] ? columns[1].trim() : '',
+        Voorbeeldzinnen: zinnen,
         Les: lesNaam
       });
     }
@@ -635,17 +652,23 @@ function parseCSV(text) {
 }
 
 function buildLesFilters() {
-  const lessen = [...new Set(DATA.map(w => w.Les))].sort();
+  const lessen = [...new Set(DATA.map(w => w.Les))].sort((a, b) => {
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+  });
+
   const container = document.getElementById('les-pills');
+  container.innerHTML = '<button class="pill selected" data-value="all">Alle lessen</button>';
+
   lessen.forEach(les => {
-    if (!les) return;
+    if (!les || les === 'all') return;
     const btn = document.createElement('button');
     btn.className = 'pill';
     btn.setAttribute('data-value', les);
     btn.innerText = les;
     container.appendChild(btn);
   });
-  setupPillListeners(); // Reset listeners om nieuwe knoppen mee te nemen
+  
+  setupPillListeners();
 }
 
 function setupPillListeners() {
@@ -667,7 +690,6 @@ function setupPillListeners() {
 
 // ===== QUIZ LOGICA =====
 function startQuiz() {
-  // Filteren op les
   let filtered = [...DATA];
   if (config.les !== 'all') {
     filtered = filtered.filter(w => w.Les === config.les);
@@ -678,10 +700,9 @@ function startQuiz() {
     return;
   }
 
-  // Shuffelen
+  // 2) DE VOLGORDE VAN DE VRAGEN IS HIER VOLLEDIG EN ALTIJD RANDOM
   shuffle(filtered);
 
-  // Filteren op aantal
   if (config.count !== 'all') {
     const limit = parseInt(config.count, 10);
     filtered = filtered.slice(0, limit);
@@ -732,28 +753,29 @@ function nextQuestion() {
 
   const qCounterText = isAdaptiveMode ? `Item ${currentIndex + 1}/${adaptiveQueue.length}` : `Vraag ${currentIndex + 1}/${selectedWords.length}`;
 
-  // Bepaal type vraag (Zin invullen of Betekenis)
   let type = config.mode;
   if (type === 'mixed') {
-    type = Math.random() > 0.5 ? 'sentence' : 'meaning';
+    // 1) Mixed kiest nu willekeurig uit alle 3 de vraagtypes
+    const rand = Math.random();
+    if (rand < 0.33) {
+      type = 'sentence';
+    } else if (rand < 0.66) {
+      type = 'meaning';
+    } else {
+      type = 'definition';
+    }
   }
 
-  // Fallback als er per ongeluk geen voorbeeldzinnen zijn gedefinieerd
   if (type === 'sentence' && (!currentQuestion.Voorbeeldzinnen || currentQuestion.Voorbeeldzinnen.length === 0)) {
-    type = 'meaning';
+    type = 'definition'; // Fallback als er geen zin is
   }
 
   if (type === 'sentence') {
-    // KIES HIER WILLEKEURIG 1 VAN DE DRIE VOORBEELDZINNEN UIT DE CSV
     const zinnen = currentQuestion.Voorbeeldzinnen;
     const gekozenZin = zinnen[Math.floor(Math.random() * zinnen.length)];
-    
-    // Bewaar gekozen zin tijdelijk in het object voor de feedbacksectie
     currentQuestion._gekozenZin = gekozenZin;
 
-    // Maskeer het woord/de woorden in de zin die tussen {{ en }} staan
-    // De regex /\{\{([^}]+)\}\}/g zoekt naar {{tekst}} en vervangt dit compleet
-    const maskedText = gekozenZin.replace(/\{\{([^}]+)\}\}/g, `<span class="blank">......</span>`);
+    const maskedText = gekozenZin.replace(/\{\{(.*?)\}\}/g, `<span class="blank">......</span>`);
 
     card.innerHTML = `
       <div class="q-meta">
@@ -772,8 +794,29 @@ function nextQuestion() {
       if (e.key === 'Enter') checkTypedAnswer();
     });
 
+  } else if (type === 'definition') {
+    // 1) DIT IS HET NIEUWE DERDE VRAAGTYPE: OMSCHRIJVING -> WOORD INVULLEN
+    card.innerHTML = `
+      <div class="q-meta">
+        <span class="q-type-badge">Geef het juiste schooltaalwoord</span>
+        <span class="q-counter">${qCounterText}</span>
+      </div>
+      <div class="question-text" style="font-style: italic; text-align: center; font-size: 1.35rem; color: var(--ink);">
+        "${escapeHtml(currentQuestion.Omschrijving)}"
+      </div>
+      <div class="answer-input-wrap">
+        <input type="text" id="typed-ans" class="answer-input" placeholder="Typ het schooltaalwoord dat hierbij hoort..." autocomplete="off">
+        <button class="btn-check" onclick="checkTypedAnswer()">Controleer</button>
+      </div>
+    `;
+    
+    document.getElementById('typed-ans').focus();
+    document.getElementById('typed-ans').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') checkTypedAnswer();
+    });
+
   } else {
-    // Betekenis (Multiple Choice)
+    // Betekenis kiezen (Multiple Choice)
     card.innerHTML = `
       <div class="q-meta">
         <span class="q-type-badge">Wat betekent dit woord?</span>
@@ -785,7 +828,6 @@ function nextQuestion() {
       <div class="mc-options" id="mc-options-container"></div>
     `;
 
-    // Genereer foute alternatieven uit de overige dataset
     let distractors = DATA.filter(w => w.Woord !== currentQuestion.Woord);
     shuffle(distractors);
     let options = [currentQuestion, distractors[0], distractors[1], distractors[2]].filter(Boolean);
@@ -810,7 +852,15 @@ function checkTypedAnswer() {
 
   const userAns = input.value.trim().toLowerCase();
   const correctAns = currentQuestion.Woord.toLowerCase();
-  const isCorrect = (userAns === correctAns);
+  
+  let isCorrect = (userAns === correctAns);
+  
+  if (!isCorrect && currentQuestion._gekozenZin) {
+    const match = currentQuestion._gekozenZin.match(/\{\{(.*?)\}\}/);
+    if (match && match[1] && userAns === match[1].toLowerCase()) {
+      isCorrect = true;
+    }
+  }
 
   input.disabled = true;
   if (isCorrect) {
@@ -842,7 +892,6 @@ function checkMcAnswer(selectedWord, clickedBtn) {
     if (!missedWords.some(w => w.Woord === currentQuestion.Woord)) {
       missedWords.push(currentQuestion);
     }
-    // Toon de juiste knop
     buttons.forEach(b => {
       if (b.innerText.includes(currentQuestion.Omschrijving)) {
         b.classList.add('correct-mc');
@@ -855,19 +904,16 @@ function checkMcAnswer(selectedWord, clickedBtn) {
 function handleAnswerFeedback(isCorrect) {
   const card = document.getElementById('question-card');
   
-  // Highlight het woord in de getoonde voorbeeldzin
   let zinFeedback = "";
   if (currentQuestion._gekozenZin) {
     zinFeedback = currentQuestion._gekozenZin;
   } else {
-    // Pak willekeurig eentje als er gekozen was voor betekenis-modus
     const zinnen = currentQuestion.Voorbeeldzinnen;
     zinFeedback = zinnen.length > 0 ? zinnen[Math.floor(Math.random() * zinnen.length)] : "";
   }
 
   if (zinFeedback) {
-    const regex = new RegExp(escapeRegExp(currentQuestion.Woord), 'gi');
-    zinFeedback = zinFeedback.replace(regex, match => `<span class="highlight">${match}</span>`);
+    zinFeedback = zinFeedback.replace(/\{\{(.*?)\}\}/g, '<span class="highlight">$1</span>');
   }
 
   const fbPanel = document.createElement('div');
@@ -877,11 +923,11 @@ function handleAnswerFeedback(isCorrect) {
       ${isCorrect ? '✓ Helemaal juist!' : '❌ Helaas, niet correct.'}
     </div>
     <div class="fb-row">
-      <strong>Het woord</strong>
+      <strong>Het juiste schooltaalwoord</strong>
       <div class="fb-word">${currentQuestion.Woord} <span style="font-size:0.9rem; font-weight:normal; color:var(--muted)">(${currentQuestion.Les})</span></div>
     </div>
     <div class="fb-row">
-      <strong>Betekenis</strong>
+      <strong>Betekenis / Omschrijving</strong>
       <div>${currentQuestion.Omschrijving}</div>
     </div>
     ${zinFeedback ? `
@@ -894,41 +940,33 @@ function handleAnswerFeedback(isCorrect) {
 
   card.appendChild(fbPanel);
   document.getElementById('btn-next-q').focus();
+  currentQuestion._gekozenZin = null; // Reset context voor de volgende ronde
 }
 
 function advanceQuiz(lastAnswerWasCorrect) {
   if (isAdaptiveMode) {
-    const currentItem = adaptiveQueue[currentIndex];
-    
     if (lastAnswerWasCorrect) {
       wordWeights[currentQuestion.Woord] = Math.max(0, (wordWeights[currentQuestion.Woord] || 1) - 1);
-      // Verwijder uit de lopende queue
       adaptiveQueue.splice(currentIndex, 1);
-      // currentIndex blijft hierdoor gelijk (wijst naar het volgende item)
     } else {
       wordWeights[currentQuestion.Woord] = (wordWeights[currentQuestion.Woord] || 1) + 1;
-      // Verplaats naar het einde van de huidige ronde/wachtrij
       const item = adaptiveQueue.splice(currentIndex, 1)[0];
       item.round += 1;
       adaptiveQueue.push(item);
-      // currentIndex schuift niet op omdat we het element gewist hebben
     }
-    
-    // Als we aan het einde van de lopende queue zijn, reset naar 0
     if (currentIndex >= adaptiveQueue.length) {
       currentIndex = 0;
     }
   } else {
     currentIndex++;
   }
-  
   nextQuestion();
 }
 
 function endQuiz() {
   showScreen('results');
   
-  const maxScore = isAdaptiveMode ? selectedWords.length : selectedWords.length;
+  const maxScore = selectedWords.length;
   document.getElementById('res-score').innerText = score;
   document.getElementById('res-max').innerText = `/${maxScore}`;
 
@@ -940,14 +978,12 @@ function endQuiz() {
   
   document.getElementById('res-label').innerText = label;
 
-  // Feedbacktekst bouwen
   let subText = `Je overliep in totaal ${selectedWords.length} unieke schooltaalwoorden.`;
   if (isAdaptiveMode) {
     subText += `<br>De adaptieve trainer heeft geoefend tot alle woorden foutloos gekend waren.`;
   }
   document.getElementById('res-sub').innerHTML = subText;
 
-  // Gemiste lijst invullen
   const missedList = document.getElementById('missed-list');
   const missedSection = document.getElementById('missed-section');
   const btnRetryMissed = document.getElementById('btn-retry-missed');
@@ -968,17 +1004,15 @@ function endQuiz() {
   }
 }
 
-function retryAll() {
-  startQuiz();
-}
-
+function retryAll() { startQuiz(); }
 function retryMissed() {
   if (missedWords.length === 0) return;
   selectedWords = [...missedWords];
+  // Zorg dat ook bij de herkansing de fouten opnieuw gehusseld worden
+  shuffle(selectedWords);
   currentIndex = 0;
   score = 0;
   missedWords = [];
-  
   if (isAdaptiveMode) {
     adaptiveQueue = selectedWords.map(w => ({ wordObj: w, round: 1 }));
   }
@@ -991,15 +1025,12 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
-
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[arr[j]]] = [arr[arr[j]], arr[i]];
   }
-  return arr;
 }
-
 function escapeHtml(str) {
   return String(str || '')
     .replace(/&/g, '&amp;')
@@ -1008,11 +1039,6 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
-
-function escapeRegExp(string) {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 </script>
-
 </body>
 </html>
