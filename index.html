@@ -694,9 +694,10 @@ function setupPillListeners() {
 
 // ===== QUIZ LOGICA =====
 function startQuiz() {
+  // 0)) clean copy of data
   let filtered = [...DATA];
 
-  //1) filter op basis van geselecteerde les(sen)
+  // 1) filter op basis van geselecteerde les(sen)
   if (config.les !== 'all') {
     filtered = filtered.filter(w => w.Les === config.les);
   }
@@ -705,17 +706,18 @@ function startQuiz() {
     alert("Geen woorden gevonden voor deze selectie!");
     return;
   }
+  
+// 2) Schud de volledige lijst
+  filtered = shuffle(filtered);
 
-//2) reduceer tot geselecteerde aantal woorden
+// 3) reduceer tot geselecteerde aantal woorden
   if (config.count !== 'all') {
     const limit = parseInt(config.count, 10);
-    // Eerst husselen zodat de selectie zelf uit willekeurige woorden bestaat
-    shuffle(filtered);
     filtered = filtered.slice(0, limit);
   }
   
-  // 3) De definitieve lijst geselecteerde woorden ALTIJD direct voor de start schudden
-  shuffle(filtered);
+  // 4) De definitieve lijst geselecteerde woorden ALTIJD direct voor de start schudden
+  selectedWords = shuffle(filtered);
 
   selectedWords = filtered;
   currentIndex = 0;
@@ -1037,9 +1039,11 @@ function showScreen(id) {
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[arr[j]]] = [arr[arr[j]], arr[i]];
+    [arr[i], arr[j]] = [arr[j], arr[i]];
   }
+  return arr;
 }
+  
 function escapeHtml(str) {
   return String(str || '')
     .replace(/&/g, '&amp;')
