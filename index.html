@@ -997,6 +997,7 @@ function shuffle(arr) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[arr[j]]] = [arr[arr[j]], arr[i]];
   }
+  return arr;
 }
 
 function escapeHtml(str) {
