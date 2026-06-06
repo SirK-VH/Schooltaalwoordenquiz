@@ -222,8 +222,6 @@
   }
   .question-text .blank {
     display: inline-block;
-    border-bottom: 2.5px solid var(--accent);
-    min-width: 120px;
     color: var(--accent);
     font-weight: 600;
     font-style: italic;
@@ -302,6 +300,23 @@
   }
   .mc-btn.correct-mc .mc-letter { background: var(--correct); color: white; }
   .mc-btn.wrong-mc .mc-letter { background: var(--wrong); color: white; }
+
+  /* TRY AGAIN SECTION */
+  .retry-container {
+    margin-top: 1.5rem;
+    padding: 1.5rem;
+    border: 1.5px dashed var(--gold);
+    border-radius: 12px;
+    background: rgba(232, 168, 56, 0.05);
+    animation: slideIn 0.25s ease;
+  }
+  .retry-title {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    color: var(--gold);
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+  }
 
   /* FEEDBACK PANEL */
   .feedback-panel {
@@ -470,7 +485,6 @@
 </head>
 <body>
 
-<!-- ===== SETUP SCREEN ===== -->
 <div id="setup" class="screen active">
   <div class="setup-card">
     <h1>School&shy;taal&shy;<em>woorden</em></h1>
@@ -480,9 +494,9 @@
       <label>Vraagtype</label>
       <div class="pill-group" id="mode-pills">
         <button class="pill selected" data-value="mixed">Afwisselend</button>
-        <button class="pill" data-value="sentence">Voorbeeldzin</button>
-        <button class="pill" data-value="meaning">Betekenis</button>
-        <button class="pill" data-value="definition">Omschrijving</button>
+        <button class="pill" data-value="sentence">Zin aanvullen</button>
+        <button class="pill" data-value="meaning">Betekenis kiezen (MC)</button>
+        <button class="pill" data-value="definition">Omschrijving -> Woord</button>
       </div>
     </div>
 
@@ -500,11 +514,7 @@
         <button class="pill" data-value="10">10</button>
         <button class="pill" data-value="20">20</button>
         <button class="pill" data-value="30">30</button>
-        <button class="pill" data-value="40">40</button>
         <button class="pill" data-value="50">50</button>
-        <button class="pill" data-value="60">60</button>
-        <button class="pill" data-value="70">70</button>
-        <button class="pill" data-value="80">80</button>
       </div>
     </div>
 
@@ -520,7 +530,6 @@
   </div>
 </div>
 
-<!-- ===== QUIZ SCREEN ===== -->
 <div id="quiz" class="screen">
   <header class="site-header">
     <div class="logo">Taal<span>woorden</span></div>
@@ -532,12 +541,10 @@
   </div>
   <div class="quiz-body">
     <div class="question-card" id="question-card">
-      <!-- Ingevuld door JS -->
-    </div>
+      </div>
   </div>
 </div>
 
-<!-- ===== RESULTS SCREEN ===== -->
 <div id="results" class="screen">
   <div class="results-card">
     <div class="results-score-big">
@@ -588,7 +595,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function loadCSVData() {
-  fetch(CSV_FILE)
+  fetch(encodeURIComponent(CSV_FILE))
     .then(response => {
       if (!response.ok) throw new Error("Kan het CSV-bestand niet vinden.");
       return response.text();
@@ -694,10 +701,8 @@ function setupPillListeners() {
 
 // ===== QUIZ LOGICA =====
 function startQuiz() {
-  // 0)) clean copy of data
   let filtered = [...DATA];
-
-  // 1) filter op basis van geselecteerde les(sen)
+  
   if (config.les !== 'all') {
     filtered = filtered.filter(w => w.Les === config.les);
   }
@@ -706,20 +711,14 @@ function startQuiz() {
     alert("Geen woorden gevonden voor deze selectie!");
     return;
   }
-  
-// 2) Schud de volledige lijst
-  filtered = shuffle(filtered);
 
-// 3) reduceer tot geselecteerde aantal woorden
   if (config.count !== 'all') {
     const limit = parseInt(config.count, 10);
+    filtered = shuffle(filtered);
     filtered = filtered.slice(0, limit);
   }
-  
-  // 4) De definitieve lijst geselecteerde woorden ALTIJD direct voor de start schudden
-  selectedWords = shuffle(filtered);
 
-  selectedWords = filtered;
+  selectedWords = shuffle(filtered);
   currentIndex = 0;
   score = 0;
   missedWords = [];
@@ -766,7 +765,6 @@ function nextQuestion() {
 
   let type = config.mode;
   if (type === 'mixed') {
-    // 1) Mixed kiest nu willekeurig uit alle 3 de vraagtypes
     const rand = Math.random();
     if (rand < 0.33) {
       type = 'sentence';
@@ -778,15 +776,18 @@ function nextQuestion() {
   }
 
   if (type === 'sentence' && (!currentQuestion.Voorbeeldzinnen || currentQuestion.Voorbeeldzinnen.length === 0)) {
-    type = 'definition'; // Fallback als er geen zin is
+    type = 'definition'; 
   }
+
+  currentQuestion._activeType = type;
 
   if (type === 'sentence') {
     const zinnen = currentQuestion.Voorbeeldzinnen;
     const gekozenZin = zinnen[Math.floor(Math.random() * zinnen.length)];
     currentQuestion._gekozenZin = gekozenZin;
 
-    const maskedText = gekozenZin.replace(/\{\{(.*?)\}\}/g, `<span class="blank">......</span>`);
+    // FIX: Alleen een duidelijke lage streep genereren en eventuele dubbele maskeringen uitsluiten
+    const maskedText = gekozenZin.replace(/\{\{(.*?)\}\}/g, `<span class="blank">______</span>`);
 
     card.innerHTML = `
       <div class="q-meta">
@@ -796,7 +797,7 @@ function nextQuestion() {
       <div class="question-text">"${maskedText}"</div>
       <div class="answer-input-wrap">
         <input type="text" id="typed-ans" class="answer-input" placeholder="Typ het ontbrekende schooltaalwoord..." autocomplete="off">
-        <button class="btn-check" onclick="checkTypedAnswer()">Controleer</button>
+        <button class="btn-check" id="btn-submit-typed" onclick="checkTypedAnswer()">Controleer</button>
       </div>
     `;
     
@@ -806,7 +807,6 @@ function nextQuestion() {
     });
 
   } else if (type === 'definition') {
-    // 1) DIT IS HET NIEUWE DERDE VRAAGTYPE: OMSCHRIJVING -> WOORD INVULLEN
     card.innerHTML = `
       <div class="q-meta">
         <span class="q-type-badge">Geef het juiste schooltaalwoord</span>
@@ -817,7 +817,7 @@ function nextQuestion() {
       </div>
       <div class="answer-input-wrap">
         <input type="text" id="typed-ans" class="answer-input" placeholder="Typ het schooltaalwoord dat hierbij hoort..." autocomplete="off">
-        <button class="btn-check" onclick="checkTypedAnswer()">Controleer</button>
+        <button class="btn-check" id="btn-submit-typed" onclick="checkTypedAnswer()">Controleer</button>
       </div>
     `;
     
@@ -827,7 +827,6 @@ function nextQuestion() {
     });
 
   } else {
-    // Betekenis kiezen (Multiple Choice)
     card.innerHTML = `
       <div class="q-meta">
         <span class="q-type-badge">Wat betekent dit woord?</span>
@@ -840,9 +839,9 @@ function nextQuestion() {
     `;
 
     let distractors = DATA.filter(w => w.Woord !== currentQuestion.Woord);
-    shuffle(distractors);
+    distractors = shuffle(distractors);
     let options = [currentQuestion, distractors[0], distractors[1], distractors[2]].filter(Boolean);
-    shuffle(options);
+    options = shuffle(options);
 
     const letters = ['A', 'B', 'C', 'D'];
     const container = document.getElementById('mc-options-container');
@@ -851,7 +850,7 @@ function nextQuestion() {
       const btn = document.createElement('button');
       btn.className = 'mc-btn';
       btn.innerHTML = `<span class="mc-letter">${letters[idx]}</span> <span class="mc-text">${escapeHtml(opt.Omschrijving)}</span>`;
-      btn.onclick = () => checkMcAnswer(opt.Woord, btn);
+      btn.onclick = () => checkInitialMcAnswer(opt.Woord, btn);
       container.appendChild(btn);
     });
   }
@@ -859,6 +858,7 @@ function nextQuestion() {
 
 function checkTypedAnswer() {
   const input = document.getElementById('typed-ans');
+  const checkBtn = document.getElementById('btn-submit-typed');
   if (!input || input.disabled) return;
 
   const userAns = input.value.trim().toLowerCase();
@@ -874,20 +874,19 @@ function checkTypedAnswer() {
   }
 
   input.disabled = true;
+  if (checkBtn) checkBtn.disabled = true;
+
   if (isCorrect) {
     input.classList.add('correct');
-    score++;
-    handleAnswerFeedback(true);
+    score += 2; 
+    handleAnswerFeedback(true, 2);
   } else {
     input.classList.add('wrong');
-    if (!missedWords.some(w => w.Woord === currentQuestion.Woord)) {
-      missedWords.push(currentQuestion);
-    }
-    handleAnswerFeedback(false);
+    showRetryMultipleChoice();
   }
 }
 
-function checkMcAnswer(selectedWord, clickedBtn) {
+function checkInitialMcAnswer(selectedWord, clickedBtn) {
   const container = document.getElementById('mc-options-container');
   const buttons = container.querySelectorAll('.mc-btn');
   buttons.forEach(b => b.disabled = true);
@@ -896,8 +895,8 @@ function checkMcAnswer(selectedWord, clickedBtn) {
 
   if (isCorrect) {
     clickedBtn.classList.add('correct-mc');
-    score++;
-    handleAnswerFeedback(true);
+    score += 2; 
+    handleAnswerFeedback(true, 2);
   } else {
     clickedBtn.classList.add('wrong-mc');
     if (!missedWords.some(w => w.Woord === currentQuestion.Woord)) {
@@ -908,13 +907,70 @@ function checkMcAnswer(selectedWord, clickedBtn) {
         b.classList.add('correct-mc');
       }
     });
-    handleAnswerFeedback(false);
+    handleAnswerFeedback(false, 0); 
   }
 }
 
-function handleAnswerFeedback(isCorrect) {
+function showRetryMultipleChoice() {
   const card = document.getElementById('question-card');
   
+  let distractors = DATA.filter(w => w.Woord !== currentQuestion.Woord);
+  distractors = shuffle(distractors);
+  
+  let retryOptions = [currentQuestion, distractors[0], distractors[1]].filter(Boolean);
+  retryOptions = shuffle(retryOptions);
+
+  const retryDiv = document.createElement('div');
+  retryDiv.className = 'retry-container';
+  retryDiv.innerHTML = `
+    <div class="retry-title">🤔 Herkansing (Voor 1 punt): Welk schooltaalwoord hoort hierbij?</div>
+    <div class="mc-options" id="retry-options-container"></div>
+  `;
+  card.appendChild(retryDiv);
+
+  const letters = ['A', 'B', 'C'];
+  const container = document.getElementById('retry-options-container');
+
+  retryOptions.forEach((opt, idx) => {
+    const btn = document.createElement('button');
+    btn.className = 'mc-btn';
+    btn.innerHTML = `<span class="mc-letter">${letters[idx]}</span> <span class="mc-text"><strong>${escapeHtml(opt.Woord)}</strong></span>`;
+    btn.onclick = () => checkRetryMcAnswer(opt.Woord, btn);
+    container.appendChild(btn);
+  });
+}
+
+function checkRetryMcAnswer(selectedWord, clickedBtn) {
+  const container = document.getElementById('retry-options-container');
+  const buttons = container.querySelectorAll('.mc-btn');
+  buttons.forEach(b => b.disabled = true);
+
+  const isCorrect = (selectedWord === currentQuestion.Woord);
+
+  if (isCorrect) {
+    clickedBtn.classList.add('correct-mc');
+    score += 1; 
+    handleAnswerFeedback(true, 1);
+  } else {
+    clickedBtn.classList.add('wrong-mc');
+    if (!missedWords.some(w => w.Woord === currentQuestion.Woord)) {
+      missedWords.push(currentQuestion);
+    }
+    buttons.forEach(b => {
+      if (b.innerText.includes(currentQuestion.Woord)) {
+        b.classList.add('correct-mc');
+      }
+    });
+    handleAnswerFeedback(false, 0); 
+  }
+}
+
+function handleAnswerFeedback(isCorrect, pointsGained) {
+  const card = document.getElementById('question-card');
+  
+  const oldPanel = card.querySelector('.feedback-panel');
+  if (oldPanel) oldPanel.remove();
+
   let zinFeedback = "";
   if (currentQuestion._gekozenZin) {
     zinFeedback = currentQuestion._gekozenZin;
@@ -927,11 +983,13 @@ function handleAnswerFeedback(isCorrect) {
     zinFeedback = zinFeedback.replace(/\{\{(.*?)\}\}/g, '<span class="highlight">$1</span>');
   }
 
+  let pointsText = pointsGained === 1 ? `+1 punt` : pointsGained === 2 ? `+2 punten` : `0 punten`;
+
   const fbPanel = document.createElement('div');
   fbPanel.className = `feedback-panel ${isCorrect ? 'fb-correct' : 'fb-wrong'}`;
   fbPanel.innerHTML = `
     <div class="fb-header ${isCorrect ? 'fc' : 'fw'}">
-      ${isCorrect ? '✓ Helemaal juist!' : '❌ Helaas, niet correct.'}
+      ${isCorrect ? `✓ Goedgekeurd (${pointsText})!` : `❌ Helaas, foutief (${pointsText}).`}
     </div>
     <div class="fb-row">
       <strong>Het juiste schooltaalwoord</strong>
@@ -951,7 +1009,7 @@ function handleAnswerFeedback(isCorrect) {
 
   card.appendChild(fbPanel);
   document.getElementById('btn-next-q').focus();
-  currentQuestion._gekozenZin = null; // Reset context voor de volgende ronde
+  currentQuestion._gekozenZin = null; 
 }
 
 function advanceQuiz(lastAnswerWasCorrect) {
@@ -977,7 +1035,7 @@ function advanceQuiz(lastAnswerWasCorrect) {
 function endQuiz() {
   showScreen('results');
   
-  const maxScore = selectedWords.length;
+  const maxScore = selectedWords.length * 2;
   document.getElementById('res-score').innerText = score;
   document.getElementById('res-max').innerText = `/${maxScore}`;
 
@@ -989,7 +1047,7 @@ function endQuiz() {
   
   document.getElementById('res-label').innerText = label;
 
-  let subText = `Je overliep in totaal ${selectedWords.length} unieke schooltaalwoorden.`;
+  let subText = `Je behaalde ${score} van de ${maxScore} punten over ${selectedWords.length} unieke schooltaalwoorden.`;
   if (isAdaptiveMode) {
     subText += `<br>De adaptieve trainer heeft geoefend tot alle woorden foutloos gekend waren.`;
   }
@@ -1018,9 +1076,11 @@ function endQuiz() {
 function retryAll() { startQuiz(); }
 function retryMissed() {
   if (missedWords.length === 0) return;
-  selectedWords = [...missedWords];
-  // Zorg dat ook bij de herkansing de fouten opnieuw gehusseld worden
-  shuffle(selectedWords);
+  
+  let retryList = [...missedWords];
+  retryList = shuffle(retryList);
+  
+  selectedWords = retryList;
   currentIndex = 0;
   score = 0;
   missedWords = [];
@@ -1037,13 +1097,15 @@ function showScreen(id) {
   document.getElementById(id).classList.add('active');
 }
 function shuffle(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
+  let arrayCopy = [...arr];
+  for (let i = arrayCopy.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+    let temp = arrayCopy[i];
+    arrayCopy[i] = arrayCopy[j];
+    arrayCopy[j] = temp;
   }
-  return arr;
+  return arrayCopy;
 }
-  
 function escapeHtml(str) {
   return String(str || '')
     .replace(/&/g, '&amp;')
