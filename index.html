@@ -752,8 +752,8 @@ function nextQuestion() {
     currentQuestion._gekozenZin = gekozenZin;
 
     // Maskeer het woord/de woorden in de zin die tussen {{ en }} staan
-    // De regex /\{\{(.*?)\}\}/g zoekt naar {{tekst}} en vervangt dit compleet
-    const maskedText = gekozenZin.replace(/\{\{(.*?)\}\}/g, `<span class="blank">......</span>`);
+    // De regex /\{\{([^}]+)\}\}/g zoekt naar {{tekst}} en vervangt dit compleet
+    const maskedText = gekozenZin.replace(/\{\{([^}]+)\}\}/g, `<span class="blank">......</span>`);
 
     card.innerHTML = `
       <div class="q-meta">
