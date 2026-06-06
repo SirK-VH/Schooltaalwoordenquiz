@@ -618,12 +618,16 @@ function parseCSV(text) {
           zinnen.push(columns[j].trim());
         }
       }
+      
+      // LEES HIER DYNAMISCH DE WAARDE UIT KOLOM F (INDEX 5)
+      let lesNaam = columns[5] ? columns[5].trim() : 'Overige';
+      if (lesNaam === '') lesNaam = 'Overige';
 
       result.push({
         Woord: columns[0].trim(),
         Omschrijving: columns[1].trim(),
         Voorbeeldzinnen: zinnen, // Array met tot wel 3 zinnen
-        Les: columns[5] ? columns[5].trim() : 'Onbekend'
+        Les: lesNaam
       });
     }
   }
