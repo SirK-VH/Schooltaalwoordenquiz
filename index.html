@@ -500,7 +500,11 @@
         <button class="pill" data-value="10">10</button>
         <button class="pill" data-value="20">20</button>
         <button class="pill" data-value="30">30</button>
+        <button class="pill" data-value="40">40</button>
         <button class="pill" data-value="50">50</button>
+        <button class="pill" data-value="60">60</button>
+        <button class="pill" data-value="70">70</button>
+        <button class="pill" data-value="80">80</button>
       </div>
     </div>
 
@@ -691,6 +695,8 @@ function setupPillListeners() {
 // ===== QUIZ LOGICA =====
 function startQuiz() {
   let filtered = [...DATA];
+
+  //1) filter op basis van geselecteerde les(sen)
   if (config.les !== 'all') {
     filtered = filtered.filter(w => w.Les === config.les);
   }
@@ -700,13 +706,16 @@ function startQuiz() {
     return;
   }
 
-  // 2) DE VOLGORDE VAN DE VRAGEN IS HIER VOLLEDIG EN ALTIJD RANDOM
-  shuffle(filtered);
-
+//2) reduceer tot geselecteerde aantal woorden
   if (config.count !== 'all') {
     const limit = parseInt(config.count, 10);
+    // Eerst husselen zodat de selectie zelf uit willekeurige woorden bestaat
+    shuffle(filtered);
     filtered = filtered.slice(0, limit);
   }
+  
+  // 3) De definitieve lijst geselecteerde woorden ALTIJD direct voor de start schudden
+  shuffle(filtered);
 
   selectedWords = filtered;
   currentIndex = 0;
