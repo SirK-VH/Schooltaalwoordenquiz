@@ -598,7 +598,8 @@ function loadCSVData() {
   fetch(encodeURIComponent(CSV_FILE))
     .then(response => {
       if (!response.ok) throw new Error("Kan het CSV-bestand niet vinden.");
-      return response.text();
+      //return response.text();
+      return response.arrayBuffer().then(buf => new TextDecoder('windows-1252').decode(buf));
     })
     .then(text => {
       DATA = parseCSV(text);
